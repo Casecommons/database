@@ -49,7 +49,7 @@ class Chef
               create_sql += " CONNECTION LIMIT = #{new_resource.connection_limit}" if new_resource.connection_limit
               create_sql += " OWNER = \"#{new_resource.owner}\"" if new_resource.owner
               Chef::Log.debug("#{@new_resource}: Performing query [#{create_sql}]")
-              db("template1").query(create_sql)
+              query("template1", create_sql)
               @new_resource.updated_by_last_action(true)
             ensure
               close
@@ -61,7 +61,7 @@ class Chef
           if exists?
             begin
               Chef::Log.debug("#{@new_resource}: Dropping database #{new_resource.database_name}")
-              db("template1").query("DROP DATABASE \"#{new_resource.database_name}\"")
+              query("template1", %(DROP DATABASE "#{new_resource.database_name}"))
               @new_resource.updated_by_last_action(true)
             ensure
               close
@@ -73,7 +73,7 @@ class Chef
           if exists?
             begin
               Chef::Log.debug("#{@new_resource}: Performing query [#{new_resource.sql_query}]")
-              db(@new_resource.database_name).query(@new_resource.sql_query)
+              query(@new_resource.database_name, @new_resource.sql_query)
               Chef::Log.debug("#{@new_resource}: query [#{new_resource.sql_query}] succeeded")
               @new_resource.updated_by_last_action(true)
             ensure
@@ -87,44 +87,22 @@ class Chef
         def exists?
           begin
             Chef::Log.debug("#{@new_resource}: checking if database #{@new_resource.database_name} exists")
-            ret = db("template1").query("SELECT * FROM pg_database where datname = '#{@new_resource.database_name}'").num_tuples != 0
+            ret = !query("template1", "SELECT * FROM pg_database where datname = '#{@new_resource.database_name}'").empty?
             ret ? Chef::Log.debug("#{@new_resource}: database #{@new_resource.database_name} exists") :
                   Chef::Log.debug("#{@new_resource}: database #{@new_resource.database_name} does not exist")
+            ret
           ensure
             close
           end
-          ret
         end
 
-        #
-        # Specifying the database in the connection parameter for the postgres resource is not recommended.
-        #
-        # - action_create/drop/exists will use the "template1" database to do work by default.
-        # - action_query will use the resource database_name.
-        # - specifying a database in the connection will override this behavior
-        #
-        def db(dbname = nil)
-          close if @db
-          dbname = @new_resource.connection[:database] if @new_resource.connection[:database]
-          host = @new_resource.connection[:host]
-          port = @new_resource.connection[:port] || 5432
-          user = @new_resource.connection[:username] || "postgres"
-          Chef::Log.debug("#{@new_resource}: connecting to database #{dbname} on #{host}:#{port} as #{user}")
-          password = @new_resource.connection[:password] || node[:postgresql][:password][:postgres]
-          @db = ::PGconn.new(
-            :host => host,
-            :port => port,
-            :dbname => dbname,
-            :user => user,
-            :password => password
-          )
+        def query database_name, sql
+          `sudo -u postgres psql #{database_name} -Aq --pset=tuples_only -c "#{sql}"`
         end
 
         def close
-          @db.close rescue nil
-          @db = nil
+          # no-op
         end
-
       end
     end
   end

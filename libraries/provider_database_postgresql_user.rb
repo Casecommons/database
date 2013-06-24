@@ -36,7 +36,7 @@ class Chef
         def action_create
           unless exists?
             begin
-              db("template1").query("CREATE USER \"#{@new_resource.username}\" WITH PASSWORD '#{@new_resource.password}'")
+              query("template1", "CREATE USER \"#{@new_resource.username}\" WITH PASSWORD '#{@new_resource.password}'")
               @new_resource.updated_by_last_action(true)
             ensure
               close
@@ -47,7 +47,7 @@ class Chef
         def action_drop
           if exists?
             begin
-              db("template1").query("DROP USER \"#{@new_resource.username}\"")
+              query("template1", "DROP USER \"#{@new_resource.username}\"")
               @new_resource.updated_by_last_action(true)
             ensure
               close
@@ -60,7 +60,7 @@ class Chef
             # FIXME: grants on individual tables
             grant_statement = "GRANT #{@new_resource.privileges.join(', ')} ON DATABASE \"#{@new_resource.database_name}\" TO \"#{@new_resource.username}\""
             Chef::Log.info("#{@new_resource}: granting access with statement [#{grant_statement}]")
-            db(@new_resource.database_name).query(grant_statement)
+            query(@new_resource.database_name, grant_statement)
             @new_resource.updated_by_last_action(true)
           ensure
             close
@@ -68,15 +68,19 @@ class Chef
         end
 
         private
+
+        def query database_name, sql
+          `sudo -u postgres psql #{database_name} -Aq --pset=tuples_only -c "#{sql}"`
+        end
+
         def exists?
           begin
-            exists = db("template1").query("SELECT * FROM pg_user WHERE usename='#{@new_resource.username}'").num_tuples != 0
+            exists = !query("template1", "SELECT * FROM pg_user WHERE usename='#{@new_resource.username}'").empty?
           ensure
             close
           end
           exists
         end
-
       end
     end
   end
