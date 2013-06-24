@@ -26,8 +26,6 @@ class Chef
         include Chef::Mixin::ShellOut
 
         def load_current_resource
-          Gem.clear_paths
-          require 'pg'
           @current_resource = Chef::Resource::Database.new(@new_resource.name)
           @current_resource.database_name(@new_resource.database_name)
           @current_resource
