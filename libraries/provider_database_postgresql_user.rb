@@ -68,7 +68,10 @@ class Chef
         private
 
         def query database_name, sql
-          `sudo -u postgres psql #{database_name} -Aq --pset=tuples_only -c "#{sql}"`
+          require 'shellwords'
+          database_name = Shellwords.escape(database_name)
+          sql = Shellwords.escape(sql)
+          `sudo -u postgres psql #{database_name} -Aq --pset=tuples_only -c #{sql}`
         end
 
         def exists?
